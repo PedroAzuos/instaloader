@@ -82,7 +82,7 @@ class InstaloaderContext:
                  max_connection_attempts: int = 3, request_timeout: float = 300.0,
                  rate_controller: Optional[Callable[["InstaloaderContext"], "RateController"]] = None,
                  fatal_status_codes: Optional[List[int]] = None,
-                 iphone_support: bool = True):
+                 iphone_support: bool = True, private:bool = False):
 
         self.user_agent = user_agent if user_agent is not None else default_user_agent()
         self.request_timeout = request_timeout
@@ -91,6 +91,7 @@ class InstaloaderContext:
         self.user_id = None
         self.sleep = sleep
         self.quiet = quiet
+        self.private = private
         self.max_connection_attempts = max_connection_attempts
         self._graphql_page_length = 50
         self.two_factor_auth_pending = None
