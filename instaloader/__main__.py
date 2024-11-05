@@ -9,6 +9,8 @@ from argparse import ArgumentParser, ArgumentTypeError, SUPPRESS
 from enum import IntEnum
 from typing import List, Optional
 
+from requests import session
+
 from . import (AbortDownloadException, BadCredentialsException, Instaloader, InstaloaderException,
                InvalidArgumentException, LoginException, Post, Profile, ProfileNotExistsException, StoryItem,
                TwoFactorAuthRequiredException, __version__, load_structure_from_file)
@@ -146,7 +148,8 @@ def _main(instaloader: Instaloader, targetlist: List[str],
           max_count: Optional[int] = None, post_filter_str: Optional[str] = None,
           storyitem_filter_str: Optional[str] = None,
           browser: Optional[str] = None,
-          cookiefile: Optional[str] = None) -> ExitCode:
+          cookiefile: Optional[str] = None,
+          private: bool = False) -> ExitCode:
     """Download set of profiles, hashtags etc. and handle logging in and session files if desired."""
     # Parse and generate filter function
     post_filter = None
@@ -312,6 +315,7 @@ def _main(instaloader: Instaloader, targetlist: List[str],
             storyitem_filter,
             latest_stamps=latest_stamps,
             reels=download_reels,
+            private= private
         )
         if anonymous_retry_profiles:
             instaloader.context.log("Downloading anonymously: {}"
@@ -326,7 +330,8 @@ def _main(instaloader: Instaloader, targetlist: List[str],
                     fast_update=fast_update,
                     post_filter=post_filter,
                     latest_stamps=latest_stamps,
-                    reels=download_reels
+                    reels=download_reels,
+                    private= private
                 )
     except KeyboardInterrupt:
         print("\nInterrupted by user.", file=sys.stderr)
@@ -355,6 +360,12 @@ def main():
                                    "https://instaloader.github.io/.",
                             fromfile_prefix_chars='+')
 
+    # Add the --private flag
+    parser.add_argument('--private', action='store_true',
+                        help='Automatically unblock and re-block accounts to download content more privately.')
+
+
+    # Pass args.private to your download logic
     g_targets = parser.add_argument_group("What to Download",
                                           "Specify a list of targets. For each of these, Instaloader creates a folder "
                                           "and downloads all posts. The following targets are supported:")
@@ -599,7 +610,8 @@ def main():
                           post_filter_str=args.post_filter,
                           storyitem_filter_str=args.storyitem_filter,
                           browser=args.load_cookies,
-                          cookiefile=args.cookiefile)
+                          cookiefile=args.cookiefile,
+                          private=args.private)
         loader.close()
         if loader.has_stored_errors:
             exit_code = ExitCode.NON_FATAL_ERROR

@@ -211,6 +211,7 @@ class Instaloader:
     def __init__(self,
                  sleep: bool = True,
                  quiet: bool = False,
+                 private:bool = False,
                  user_agent: Optional[str] = None,
                  dirname_pattern: Optional[str] = None,
                  filename_pattern: Optional[str] = None,
@@ -236,7 +237,7 @@ class Instaloader:
 
         self.context = InstaloaderContext(sleep, quiet, user_agent, max_connection_attempts,
                                           request_timeout, rate_controller, fatal_status_codes,
-                                          iphone_support)
+                                          iphone_support, private)
 
         # configuration parameters
         self.dirname_pattern = dirname_pattern or "{target}"
@@ -267,6 +268,7 @@ class Instaloader:
         self.slide = slide or ""
         self.slide_start = 0
         self.slide_end = -1
+        self.private = False
         if self.slide != "":
             splitted = self.slide.split('-')
             if len(splitted) == 1:
@@ -314,7 +316,8 @@ class Instaloader:
             slide=self.slide,
             fatal_status_codes=self.context.fatal_status_codes,
             iphone_support=self.context.iphone_support,
-            sanitize_paths=self.sanitize_paths)
+            sanitize_paths=self.sanitize_paths,
+            private=self.private)
         yield new_loader
         self.context.error_log.extend(new_loader.context.error_log)
         new_loader.context.error_log = []  # avoid double-printing of errors
@@ -584,6 +587,22 @@ class Instaloader:
 
         .. versionadded:: 4.4"""
         self.download_title_pic(hashtag.profile_pic_url, '#' + hashtag.name, 'profile_pic', None)
+
+    def is_account_blocked(self, target_username):
+        profile_url = f"https://www.instagram.com/{target_username}/"
+        response = self.context._session.get(profile_url)
+        return "Sorry, this page isn't available" in response.text
+
+    def unblock_account(self, target_username):
+        unblock_url = f"https://i.instagram.com/api/v1/web/friendships/{target_username}/unblock/"
+        response = self.context._session.post(unblock_url)
+        return response.ok
+
+    def block_account(self, target_username ):
+        block_url = f"https://i.instagram.com/api/v1/web/friendships/{target_username}/block/"
+        response = self.context._session.post(block_url)
+        return response.ok
+
 
     @_requires_login
     def save_session(self) -> dict:
@@ -1437,7 +1456,8 @@ class Instaloader:
                           raise_errors: bool = False,
                           latest_stamps: Optional[LatestStamps] = None,
                           max_count: Optional[int] = None,
-                          reels: bool = False):
+                          reels: bool = False,
+                          private: bool = False):
         """High-level method to download set of profiles.
 
         :param profiles: Set of profiles to download.
@@ -1456,6 +1476,7 @@ class Instaloader:
         :param latest_stamps: :option:`--latest-stamps`.
         :param max_count: Maximum count of posts to download.
         :param reels: :option:`--reels`.
+        :param private: :option:'--private'
 
         .. versionadded:: 4.1
 
@@ -1480,6 +1501,12 @@ class Instaloader:
         error_handler = _error_raiser if raise_errors else self.context.error_catcher
 
         for i, profile in enumerate(profiles, start=1):
+            if private:
+                    if self.unblock_account(target_username= profile.userid):
+                        self.context.log(f"Successfully unblocked {profile.username}.")
+                    else:
+                        self.context.log(f"Failed to unblock {profile.username}. Proceeding normally.")
+
             self.context.log("[{0:{w}d}/{1:{w}d}] Downloading profile {2}".format(i, len(profiles), profile.username,
                                                                                   w=len(str(len(profiles)))))
             with error_handler(profile.username):  # type: ignore # (ignore type for Python 3.5 support)
@@ -1552,13 +1579,19 @@ class Instaloader:
                 self.download_stories(userids=list(profiles), fast_update=fast_update, filename_target=None,
                                       storyitem_filter=storyitem_filter, latest_stamps=latest_stamps)
 
+        if private:
+            for i, profile in enumerate(profiles, start=1):
+                print(f"Re-blocking {profile.username}...")
+                self.block_account( target_username=profile.userid)
+
     def download_profile(self, profile_name: Union[str, Profile],
                          profile_pic: bool = True, profile_pic_only: bool = False,
                          fast_update: bool = False,
                          download_stories: bool = False, download_stories_only: bool = False,
                          download_tagged: bool = False, download_tagged_only: bool = False,
                          post_filter: Optional[Callable[[Post], bool]] = None,
-                         storyitem_filter: Optional[Callable[[StoryItem], bool]] = None) -> None:
+                         storyitem_filter: Optional[Callable[[StoryItem], bool]] = None,
+                         private: bool = False,) -> None:
         """Download one profile
 
         .. deprecated:: 4.1
@@ -1574,6 +1607,13 @@ class Instaloader:
             profile = profile_name
 
         profile_name = profile.username
+
+        if private:
+            if self.unblock_account( target_username=profile.userid):
+                self.context.log(f"Successfully unblocked {profile.username}.")
+            else:
+                self.context.log(f"Failed to unblock {profile.username}. Proceeding normally.")
+
 
         # Save metadata as JSON if desired.
         if self.save_metadata is not False:
@@ -1625,6 +1665,11 @@ class Instaloader:
         self.context.log("Retrieving posts from profile {}.".format(profile_name))
         self.posts_download_loop(profile.get_posts(), profile_name, fast_update, post_filter,
                                  total_count=profile.mediacount, owner_profile=profile)
+
+        if private:
+            print(f"Re-blocking {profile.username}...")
+            self.block_account( target_username=profile.userid)
+
 
     def interactive_login(self, username: str) -> None:
         """Logs in and internally stores session, asking user for password interactively.
