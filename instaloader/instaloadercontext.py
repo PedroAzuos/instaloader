@@ -139,7 +139,7 @@ class InstaloaderContext:
     def log(self, *msg, sep='', end='\n', flush=False):
         """Log a message to stdout that can be suppressed with --quiet."""
         if not self.quiet:
-            print(*msg, sep=sep, end=end, flush=flush)
+            print(*f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {msg}", sep=sep, end=end, flush=flush)
 
     def error(self, msg, repeat_at_end=True):
         """Log a non-fatal error message to stderr, which is repeated at program termination.
@@ -148,7 +148,7 @@ class InstaloaderContext:
         :param repeat_at_end: Set to false if the message should be printed, but not repeated at program termination."""
         print(msg, file=sys.stderr)
         if repeat_at_end:
-            self.error_log.append(msg)
+            self.error_log.append(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {msg}")
 
     @property
     def has_stored_errors(self) -> bool:
