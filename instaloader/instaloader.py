@@ -596,9 +596,15 @@ class Instaloader:
     def unblock_account(self, target_username):
         unblock_url = f"https://i.instagram.com/api/v1/web/friendships/{target_username}/unblock/"
         response = self.context._session.post(unblock_url)
+        if response.ok:
+            self.context.log(f"Successfully unblocked {target_username}.")
+        else:
+            self.context.log(f"Failed to unblock {target_username}. Assuming already unblocked.")
+
         return response.ok
 
     def block_account(self, target_username ):
+        self.context.log(f"Re-blocking {target_username}...")
         block_url = f"https://i.instagram.com/api/v1/web/friendships/{target_username}/block/"
         response = self.context._session.post(block_url)
         return response.ok
@@ -1502,10 +1508,9 @@ class Instaloader:
 
         for i, profile in enumerate(profiles, start=1):
             if private:
-                    if self.unblock_account(target_username= profile.userid):
-                        self.context.log(f"Successfully unblocked {profile.username}.")
-                    else:
-                        self.context.log(f"Failed to unblock {profile.username}. Proceeding normally.")
+                self.unblock_account( profile.userid)
+
+
 
             self.context.log("[{0:{w}d}/{1:{w}d}] Downloading profile {2}".format(i, len(profiles), profile.username,
                                                                                   w=len(str(len(profiles)))))
@@ -1581,8 +1586,7 @@ class Instaloader:
 
         if private:
             for i, profile in enumerate(profiles, start=1):
-                print(f"Re-blocking {profile.username}...")
-                self.block_account( target_username=profile.userid)
+                self.block_account( profile.userid)
 
     def download_profile(self, profile_name: Union[str, Profile],
                          profile_pic: bool = True, profile_pic_only: bool = False,
@@ -1609,11 +1613,7 @@ class Instaloader:
         profile_name = profile.username
 
         if private:
-            if self.unblock_account( target_username=profile.userid):
-                self.context.log(f"Successfully unblocked {profile.username}.")
-            else:
-                self.context.log(f"Failed to unblock {profile.username}. Proceeding normally.")
-
+            self.unblock_account( profile.userid)
 
         # Save metadata as JSON if desired.
         if self.save_metadata is not False:
@@ -1667,8 +1667,7 @@ class Instaloader:
                                  total_count=profile.mediacount, owner_profile=profile)
 
         if private:
-            print(f"Re-blocking {profile.username}...")
-            self.block_account( target_username=profile.userid)
+            self.block_account( profile.userid)
 
 
     def interactive_login(self, username: str) -> None:
